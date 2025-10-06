@@ -1,0 +1,80 @@
+#Primeiro importar bibliotecas de dados
+import yfinance as yf
+import pandas as pd
+
+#Definir os tickers - Indicadores financeiros
+tickers = {
+    'IBOVESPA': '^BVSP',
+    'S&P500': '^GSPC',
+    'USDBRL': 'BRL=X',
+    'Gold': 'GC=F',
+    'VIX': '^VIX'
+}
+
+start_date = '2015-01-01' #Data de referência inicial
+end_date = '2024-12-31' #Data de referência final
+
+series_list = []
+
+for name, ticker in tickers.items():
+    df = yf.download(ticker, start=start_date, end=end_date)
+    if not df.empty and 'Close' in df.columns:
+        df = df[['Close']].rename(columns={'Close': name})
+        series_list.append(df)
+    else:
+        print(f"⚠️ Dados não encontrados para {name} ({ticker})")
+
+df_all = pd.concat(series_list, axis=1)
+df_all.dropna(how='all', inplace=True)
+
+print(df_all.head())
+
+# Função para calcular o retorno diário
+daily_returns = df_all.pct_change()
+
+# Função para calcular o retorno mensal
+monthly_returns = df_all.resample('M').ffill().pct_change()
+
+# Função para calcular o retorno anual
+annual_returns = df_all.resample('Y').ffill().pct_change()
+
+# Função para calcular a volatilidade diária
+daily_vol = daily_returns.std()
+
+# Função para calcular a volatilidade mensal
+monthly_vol = monthly_returns.std()
+
+# Função para calcular a volatilidade anual
+annual_vol = annual_returns.std()
+
+# Função para calcular a correlação diária
+daily_corr = daily_returns.corr()
+
+# Função para calcular a correlação mensal
+monthly_corr = monthly_returns.corr()
+
+# Função para calcular a correlação anual
+annual_corr = annual_returns.corr()
+
+import matplotlib.pyplot as plt
+
+cumulative_returns = (1 + daily_returns).cumprod()
+
+plt.figure(figsize=(10,6))
+cumulative_returns.plot()
+plt.title('Cumulative Returns Since 2015')
+plt.ylabel('Growth of $1')
+plt.grid(True)
+plt.show()
+
+import seaborn as sns
+
+plt.figure(figsize=(8,6))
+sns.heatmap(daily_corr, annot=True, cmap='coolwarm')
+plt.title('Daily Correlation Matrix')
+plt.show()
+
+#Função para calcular o ranking de riscos
+risk_ranking = annual_vol.sort_values(ascending=False)
+print("Ranking de risco (maior volatilidade anual):")
+print(risk_ranking)
