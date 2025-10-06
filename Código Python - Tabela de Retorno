@@ -1,0 +1,62 @@
+import yfinance as yf
+import pandas as pd
+import numpy as np
+
+# Criar função para baixar os dados
+tickers = {
+    'IBOVESPA': '^BVSP',
+    'S&P500': '^GSPC',
+    'USDBRL': 'BRL=X',
+    'Gold': 'GC=F',
+    'VIX': '^VIX'
+}
+
+start_date = '2015-01-01' #Data de referência inicial
+end_date = '2024-12-31' #Data de referência final
+
+series_list = []
+
+for name, ticker in tickers.items():
+    df = yf.download(ticker, start=start_date, end=end_date)
+    if not df.empty and 'Close' in df.columns:
+        df = df[['Close']].rename(columns={'Close': name})
+        series_list.append(df)
+    else:
+        print(f"⚠️ No data found for {name} ({ticker})")
+
+df_all = pd.concat(series_list, axis=1)
+df_all.dropna(how='all', inplace=True)
+
+# Calcular os retornos anuais
+annual_returns = df_all.resample('Y').ffill().pct_change().dropna() * 100
+annual_returns.index = annual_returns.index.year
+
+# Alocação do capital de R$ 100.000,00
+weights = {'IBOVESPA': 0.3, 'S&P500': 0.3, 'USDBRL': 0.2, 'Gold': 0.2}
+strategy_returns = annual_returns[list(weights.keys())].mul(list(weights.values())).sum(axis=1)
+annual_returns['Strategy Return (%)'] = strategy_returns
+
+# Indicar o IPCA manualmente
+ipca = {
+    2020: 4.5,
+    2021: 10.1,
+    2022: 5.8,
+    2023: 4.6,
+    2024: 4.2
+}
+annual_returns['IPCA (%)'] = pd.Series(ipca)
+
+# Volatilidade anual do VIX
+vix_vol = df_all['VIX'].groupby(df_all.index.year).std() * np.sqrt(252)
+annual_returns['VIX (%)'] = vix_vol
+
+# Tabela final
+final_table = annual_returns[['Strategy Return (%)', 'IBOVESPA', 'S&P500', 'USDBRL', 'Gold', 'VIX (%)', 'IPCA (%)']]
+final_table.columns = ['Strategy Return (%)', 'IBOVESPA (%)', 'S&P500 (%)', 'USDBRL (%)', 'Gold (%)', 'VIX (%)', 'IPCA (%)']
+
+# Linha dos valores totais
+total_row = final_table.sum(numeric_only=True)
+final_table.loc['Total'] = total_row
+
+# Print da tabela
+print(final_table.round(2))
